@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# SUBSCRIBER
 
 import rospy
 from std_msgs.msg import Float32
