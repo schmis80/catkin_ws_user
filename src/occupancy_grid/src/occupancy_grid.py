@@ -32,14 +32,12 @@ def setCell(x,y):
 
 def scanCallback(scan_msg):
     global occupancy_grid
-
     resetGrid()
-
     # convert scan measurements into an occupancy grid 
     for i in range(len(scan_msg.ranges)):
         r = scan_msg.ranges[i]
         if r != float('inf'):
-            setCell(r+cos(radians(i)),r+sin(radians(i)))
+            setCell(r*sin(radians(i)),r*cos(radians(i)))
     pub_grid.publish(occupancy_grid)
 
 
@@ -64,7 +62,7 @@ occupancy_grid.info.origin.orientation.y = 0
 occupancy_grid.info.origin.orientation.z = 0
 occupancy_grid.info.origin.orientation.w = 1
 
-rospy.Subscriber("scan", LaserScan, scanCallback, queue_size=100)
-pub_grid = rospy.Publisher("scan_grid", OccupancyGrid, queue_size=100)
+rospy.Subscriber("/scan", LaserScan, scanCallback, queue_size=100)
+pub_grid = rospy.Publisher("/schmis80_grid", OccupancyGrid, queue_size=100)
 
 rospy.spin()
