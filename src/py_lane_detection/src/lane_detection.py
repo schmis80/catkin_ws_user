@@ -1,8 +1,14 @@
 #!/usr/bin/env python
 
 import sys
+import rospy
 import cv2
 import numpy as np
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
+
+
+
 
 def get_image(path):
     """get picture, return it and a white pixel mask
@@ -67,27 +73,46 @@ def find_best_params(points):
     return best_params
     
 
-cv_image, mask = get_image('Bilder/streetview.png')
-white = np.nonzero(mask)
-points = np.column_stack((white[1],white[0]))
-ms = []
-cs = []
+def callback(msg):
+    cv_image = CvBridge().imgmsg_to_cv2(msg, "bgr8")
 
-for _ in range(3):
-    m, c = find_best_params(points)
+    hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+    # get mask
+    lower_hsv = np.array([0,0,220])
+    upper_hsv = np.array([179,51,255])
+    mask = cv2.inRange(hsv, lower_hsv, upper_hsv)
+    mask = cv2.bilateralFilter(mask,9,75,75)
+
+    white = np.nonzero(mask)
+    points = np.column_stack((white[1],white[0]))
+    ms = []
+    cs = []
+    
+    for _ in range(3):
+        m, c = find_best_params(points)
+        
+        ms.append(m)
+        cs.append(c)
+        
+        points = points[np.where(get_distance(points, m, c) > 5)]
     
     ms.append(m)
     cs.append(c)
     
-    points = points[np.where(get_distance(points, m, c) > 5)]
+    cv_image = cv2.bitwise_and(cv_image, cv_image, mask=mask)
 
-ms.append(m)
-cs.append(c)
+    for i in range(len(ms)):
+        cv2.line(cv_image,
+                 (0,int(round(cs[i]))),
+                 (cv_image.shape[1], int(round(ms[i]*cv_image.shape[1]+cs[i]))),
+                 (0, 0, 255))
+    pub_img.publish(CvBridge().cv2_to_imgmsg(cv_image, "bgr8"))
+#    cv2.imshow('line', cv_image)
+#    cv2.waitKey(0)
 
-for i in range(len(ms)):
-    cv2.line(cv_image,
-             (0,int(round(cs[i]))),
-             (cv_image.shape[1], int(round(ms[i]*cv_image.shape[1]+cs[i]))),
-             (0, 0, 255))
-cv2.imshow('line', cv_image)
-cv2.waitKey(0)
+rospy.init_node('lane_det')
+rospy.Subscriber('/app/camera/rgb/image_raw', Image, callback)
+
+pub_img = rospy.Publisher('/detected_lines', Image)
+
+rospy.spin()
