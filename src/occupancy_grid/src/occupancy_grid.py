@@ -34,10 +34,11 @@ def scanCallback(scan_msg):
     global occupancy_grid
     resetGrid()
     # convert scan measurements into an occupancy grid 
+    angles = np.arange(scan_msg.angle_min, scan_msg.angle_max + scan_msg.angle_increment / 2, scan_msg.angle_increment)
     for i in range(len(scan_msg.ranges)):
         r = scan_msg.ranges[i]
         if r != float('inf'):
-            setCell(r*sin(radians(i)),r*cos(radians(i)))
+            setCell(r*cos(angles[i]),r*sin(angles[i]))
     pub_grid.publish(occupancy_grid)
 
 
