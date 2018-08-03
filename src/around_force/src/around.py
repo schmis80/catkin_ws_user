@@ -3,6 +3,7 @@
 import rospy
 import tf
 import numpy as np
+import time
 from nav_msgs.msg import Odometry
 from std_msgs.msg import UInt8, Float64, Int16, Float64MultiArray
 import rospkg
@@ -13,12 +14,31 @@ map_size_x=600 #cm
 map_size_y=400 #cm
 resolution = 10 # cm
 lane=1
-speed_value= 400
+speed_value= 800
 is_shutdown = False
+is_obstacle = False
+
+last_time = time.time()
+sample_time = 0.0001
+last_error = 0
+windup_guard = 10
+PTerm = 0
+ITerm = 0
+DTerm = 0
+
 
 rospack = rospkg.RosPack()
 file_path=rospack.get_path('around_force')+'/src/'
 matrix = np.load(file_path+'matrix100cm_lane2.npy')
+
+ns = ''
+
+def drive(speed, angle):
+    pub_steering.publish(angle)
+    pub_speed.publish(speed)
+
+def stop_driving():
+    drive(0,90)
 
 def angle_diff(angle1, angle2):
     diff = angle1 - angle2
@@ -29,8 +49,10 @@ def angle_diff(angle1, angle2):
     return diff
 
 def callback(msg):
-    global speed_value, matrix, is_shutdown
+    global speed_value, matrix, is_shutdown 
+    global last_time, last_error, windup_guard, PTerm, ITerm, DTerm
 
+    # get position and orientation
     x = msg.pose.pose.position.x
     y = msg.pose.pose.position.y
     o = msg.pose.pose.orientation
@@ -53,22 +75,40 @@ def callback(msg):
     x_map, y_map = matrix[x_ind, y_ind]
     x_car = np.cos(yaw)*x_map + np.sin(yaw)*y_map
     y_car = -np.sin(yaw)*x_map + np.cos(yaw)*y_map
-    kp = 4
+    kp = 1.6
+    ki = 0.01
+    kd = 0.001
 
-    steering = kp*np.arctan(y_car / (2.5*x_car))
+    error = kp*np.arctan(y_car / (2.5*x_car))
 
+    current_time = time.time()
+    delta_time = current_time - last_time
+    delta_error = error - last_error
+
+    if (delta_time >= sample_time):
+        PTerm = kp * error
+        ITerm += error * delta_time
+
+        if (ITerm < -windup_guard):
+            ITerm = -windup_guard
+        elif (ITerm > windup_guard):
+            ITerm = windup_guard
+
+        DTerm = 0.0
+        if delta_time > 0:
+            DTerm = delta_error / delta_time
+
+        # Remember last time and last error for next calculation
+        last_time = current_time
+        last_error = error
+
+    steering = PTerm + (ki * ITerm) + (kd * DTerm)
+
+    print steering
     if (x_car<0):
         speed = -speed_value
-#        if (y_car>0):
-#        	steering = -np.pi/2
-#        if (y_car<0):
-#        	steering = np.pi/2
     else:
          speed = speed_value
-#        if (y_car<0):
-#        	steering = -np.pi/2
-#        if (y_car>0):
-#        	steering = np.pi/2
 
     if (steering>(np.pi)/2):
         steering = (np.pi)/2
@@ -79,33 +119,42 @@ def callback(msg):
     if x_car > 0:
         speed = max(speed_value, speed * ((np.pi/3)/(abs(steering)+1)))
     steering = 90 + (180/np.pi)*steering 
-  #  if steering > 90:
-  #      steering = 90
-  #  elif steering < -90:
-  #      steering = -90
-    if not is_shutdown:
-        pub_steering.publish(steering)
-        pub_speed.publish(speed)
+
+    if not is_shutdown and not is_obstacle:
+        drive(speed, steering)
 
 def laneCallback(msg):
-    global matrix
-    print msg.data
+    global matrix, lane
+    path = 'matrix100cm_lane'
+    lane+=1
+    print 'Switching to lane',(lane%2+1) 
+    matrix = np.load(file_path+'matrix100cm_lane'+str(lane%2+1)+'.npy')
+
+def maxSpeedCallback(msg):
+    global speed_value
+    speed_value = msg.data
+
+def obstacleCallback(msg):
+    global is_obstacle
+
     if msg.data == 1:
-        matrix = np.load(file_path+'matrix100cm_lane1.npy')
-    elif msg.data == 2:
-        matrix = np.load(file_path+'matrix100cm_lane2.npy')
+       stop_driving()
+       is_obstacle = True
+    if msg.data == 0:
+       is_obstacle = False
 
 def shutdown():
     global is_shutdown
-    pub_speed.publish(0)
+    stop_driving()
     is_shutdown = True
 
 rospy.init_node('around_force')
-localization = rospy.Subscriber('/localization/odom/1', Odometry, callback)
-rospy.Subscriber('/Schmami/lane', UInt8, laneCallback)
-
-pub_speed = rospy.Publisher('/Schmami/speed',Int16,queue_size=100)
-pub_steering = rospy.Publisher('/Schmami/steering',UInt8, queue_size = 100)
+localization = rospy.Subscriber('/localization/odom/4', Odometry, callback)
+rospy.Subscriber(ns+'/lane', Int16, laneCallback)
+rospy.Subscriber(ns+'/max_speed', Int16, maxSpeedCallback)
+rospy.Subscriber(ns+'/obstacle', UInt8, obstacleCallback)
+pub_speed = rospy.Publisher(ns+'/speed',Int16,queue_size=100)
+pub_steering = rospy.Publisher(ns+'/steering',UInt8, queue_size = 100)
 #pub_yaw = rospy.Publisher("/desired_yaw", Float32, queue_size=100, latch=True)
 #sub_points = rospy.Subscriber("/clicked_point", PointStamped, self.lane_callback, queue_size=1)
 
