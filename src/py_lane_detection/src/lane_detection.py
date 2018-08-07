@@ -7,7 +7,7 @@ import numpy as np
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 
-
+ns = 'AljoschaTim'
 
 
 def get_image(path):
@@ -111,7 +111,7 @@ def callback(msg):
 #    cv2.waitKey(0)
 
 rospy.init_node('lane_det')
-rospy.Subscriber('/app/camera/rgb/image_raw', Image, callback)
+rospy.Subscriber(ns+'/app/camera/rgb/image_raw', Image, callback)
 
 pub_img = rospy.Publisher('/detected_lines', Image)
 

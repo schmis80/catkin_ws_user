@@ -5,7 +5,7 @@ import tf
 import numpy as np
 import time
 from nav_msgs.msg import Odometry
-from std_msgs.msg import UInt8, Float64, Int16, Float64MultiArray
+from std_msgs.msg import Bool, UInt8, Float64, Int16, Float64MultiArray
 import rospkg
 
 PI = 3.1415
@@ -14,12 +14,12 @@ map_size_x=600 #cm
 map_size_y=400 #cm
 resolution = 10 # cm
 lane=1
-speed_value= 800
+speed_value= 900
 is_shutdown = False
 is_obstacle = False
 
 last_time = time.time()
-sample_time = 0.0001
+sample_time = 0.001
 last_error = 0
 windup_guard = 10
 PTerm = 0
@@ -29,7 +29,7 @@ DTerm = 0
 
 rospack = rospkg.RosPack()
 file_path=rospack.get_path('around_force')+'/src/'
-matrix = np.load(file_path+'matrix100cm_lane2.npy')
+matrix = np.load(file_path+'matrix100cm_lane1.npy')
 
 ns = ''
 
@@ -38,7 +38,7 @@ def drive(speed, angle):
     pub_speed.publish(speed)
 
 def stop_driving():
-    drive(0,90)
+    pub_speed.publish(0)
 
 def angle_diff(angle1, angle2):
     diff = angle1 - angle2
@@ -75,9 +75,9 @@ def callback(msg):
     x_map, y_map = matrix[x_ind, y_ind]
     x_car = np.cos(yaw)*x_map + np.sin(yaw)*y_map
     y_car = -np.sin(yaw)*x_map + np.cos(yaw)*y_map
-    kp = 1.6
+    kp = 1.7
     ki = 0.01
-    kd = 0.001
+    kd = 0.01
 
     error = kp*np.arctan(y_car / (2.5*x_car))
 
@@ -104,7 +104,7 @@ def callback(msg):
 
     steering = PTerm + (ki * ITerm) + (kd * DTerm)
 
-    print steering
+#    print steering
     if (x_car<0):
         speed = -speed_value
     else:
@@ -126,9 +126,12 @@ def callback(msg):
 def laneCallback(msg):
     global matrix, lane
     path = 'matrix100cm_lane'
-    lane+=1
-    print 'Switching to lane',(lane%2+1) 
-    matrix = np.load(file_path+'matrix100cm_lane'+str(lane%2+1)+'.npy')
+    if lane == 1:
+        lane = 2
+    else:
+        lane = 1
+    print 'Switching to lane',lane 
+    matrix = np.load(file_path+'matrix100cm_lane'+str(lane)+'.npy')
 
 def maxSpeedCallback(msg):
     global speed_value
@@ -137,11 +140,10 @@ def maxSpeedCallback(msg):
 def obstacleCallback(msg):
     global is_obstacle
 
-    if msg.data == 1:
+    is_obstacle = msg.data
+
+    if is_obstacle:
        stop_driving()
-       is_obstacle = True
-    if msg.data == 0:
-       is_obstacle = False
 
 def shutdown():
     global is_shutdown
@@ -150,9 +152,9 @@ def shutdown():
 
 rospy.init_node('around_force')
 localization = rospy.Subscriber('/localization/odom/4', Odometry, callback)
-rospy.Subscriber(ns+'/lane', Int16, laneCallback)
+rospy.Subscriber(ns+'/lane', Bool, laneCallback)
 rospy.Subscriber(ns+'/max_speed', Int16, maxSpeedCallback)
-rospy.Subscriber(ns+'/obstacle', UInt8, obstacleCallback)
+rospy.Subscriber(ns+'/obstacle', Bool, obstacleCallback)
 pub_speed = rospy.Publisher(ns+'/speed',Int16,queue_size=100)
 pub_steering = rospy.Publisher(ns+'/steering',UInt8, queue_size = 100)
 #pub_yaw = rospy.Publisher("/desired_yaw", Float32, queue_size=100, latch=True)
