@@ -3,6 +3,7 @@
 import sys
 import cv2
 import numpy as np
+import math
 #import matplotlib
 #matplotlib.use('Agg')
 from matplotlib import pyplot as plt
@@ -12,7 +13,7 @@ gray=cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
 
 #bi_gray
 bi_gray_max = 255
-bi_gray_min = 230
+bi_gray_min = 205
 ret,thresh1=cv2.threshold(gray, bi_gray_min, bi_gray_max, cv2.THRESH_BINARY);
 cv2.imshow('image',thresh1)
 #cv2.waitKey(0)
@@ -90,11 +91,13 @@ print('object points:')
 print(object_points)
 
 if len(points) == 6:
+  img_points = np.zeros((6,2))
   image_points = np.zeros((6,2,1))
+  img_points = np.array(points)
   image_points[:,:,0] = np.array(points)
   
   print('\nimage points:')
-  print(image_points[:,:,0])
+  print(img_points)
 
 k1 = 0.1115
 k2 = -0.1089
@@ -125,11 +128,23 @@ cv2.Rodrigues(rvec, rmat, jacobian=0)
 print('\nrotation matrix:')
 print(rmat)
 
-# Rückrechnung (noch nicht geschafft)
-t = rmat.dot(tvec)*(-1)
-H = rmat
-H[:,2] = t[:,0]
-print(H)
+inv_rmat = rmat.transpose()
+print 'inv_rmat \n' , inv_rmat
+inv_rmat_ = np.negative(inv_rmat)
+inv_tvec = inv_rmat_.dot(tvec)
+print 'inv_tvec \n' , inv_tvec
+sy = math.sqrt(rmat[0,0] * rmat[0,0] +  rmat[1,0] * rmat[1,0]);
+singular = sy < 1e-6; # If
+if not singular:
+     x = math.atan2(-rmat[2,1] , rmat[2,2]);
+     y = math.atan2(-rmat[2,0], sy);
+     z = math.atan2(rmat[1,0], rmat[0,0]);
+else:
+     x = math.atan2(-rmat[1,2], rmat[1,1]);
+     y = math.atan2(-rmat[2,0], sy);
+     z = 0;
+print 'x,y,z', x,y,z
+
 
 #cv2.imshow('image',gray)
 #cv2.destroyAllWindows()
