@@ -1,0 +1,16 @@
+    last_col = cols//2 + 25
+    first_row = rows//2 - 25
+    last_row = rows//2 + 25
+
+    cut_array = depth_array[first_row:last_row,first_col:last_col]
+    cut_array = cut_array[np.nonzero(cut_array)]
+#    cut_array = depth_array[:, cols//3:2*cols//3]
+#    max_depth = np.max(cut_array)
+
+#    print max_depth
+    is_obstacle = False
+    for y in xrange(50):
+        for x in xrange(first_col,last_col,cols//3):
+            if depth_array[y,x] < 700 and depth_array[y,x] > 0:
+                is_obstacle = True
+                break

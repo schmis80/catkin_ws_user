@@ -1,5 +1,7 @@
 <launch>
     <node name="around_force" pkg="around_force" type="around.py" output="screen"></node>
     <node name="depth" pkg="around_force" type="8-obstacle_lane_switch.py" output="screen"></node>
+    <node name="master_discovery" pkg="master_discovery_fkie" type="master_discovery"></node>
+    <node name="master_sync" pkg="master_sync_fkie" type="master_sync"></node> 
 </launch>
 

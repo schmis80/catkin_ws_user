@@ -7,8 +7,7 @@ def read_lanes(lane_file):
         for line in l_file:
             if line.startswith('1.'):
                 x, y = line.split('\t')[1:3]
-                yield x, y
+                arr.append([x, y])
 
-def build_kdtree(fname):
     
     

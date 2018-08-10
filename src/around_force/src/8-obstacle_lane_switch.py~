@@ -10,7 +10,7 @@ from std_msgs.msg import Bool, Int16
 from cv_bridge import CvBridge
 
 bridge = CvBridge()
-ns = 'AljoschaTim'
+ns = ''
 np.set_printoptions(threshold='nan')
 
 is_obstacle = False
@@ -38,21 +38,19 @@ def callback(depth_msg):
         
 #    print max_depth
     is_obstacle = False
-    if cut_array != []:
-        max_depth = np.max(cut_array)
-        #print 'Max dist:', max_depth
-        if max_depth < 1500:
-            is_obstacle = True
-#        for y in xrange(cut_array.shape[0]):
-#            for x in xrange(cut_array.shape[1]):  
-#                if cut_array[y,x] < 700 and depth_array[y,x] > 0: 
-#                    is_obstacle = True
-#                    break
-        if is_obstacle and time.time() - detected_time > 2:
-            pub_lane.publish(Bool(True))
-            first_col = 0
-            last_cols = 2*cols//3
-            detected_time = time.time()
+    print np.mean(cut_array)
+    if np.mean(cut_array) < 700:
+        is_obstacle = True
+#    for y in xrange(cut_array.shape[0]):
+#        for x in xrange(cut_array.shape[1]):  
+#            if cut_array[y,x] < 700 and depth_array[y,x] > 0: 
+#                is_obstacle = True
+#                break
+    if is_obstacle and time.time() - detected_time > 5:
+        pub_lane.publish(Bool(True))
+        first_col = 0
+        last_cols = 2*cols//3
+        detected_time = time.time()
 
 rospy.init_node('depth')
 test = rospy.Subscriber(ns+'/app/camera/depth/image_raw', Image, callback)

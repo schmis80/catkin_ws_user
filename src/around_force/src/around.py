@@ -14,7 +14,7 @@ map_size_x=600 #cm
 map_size_y=400 #cm
 resolution = 10 # cm
 lane=1
-speed_value= 900
+speed_value= 450
 is_shutdown = False
 is_obstacle = False
 
@@ -26,16 +26,24 @@ PTerm = 0
 ITerm = 0
 DTerm = 0
 
+switched_time = 0
+steering_factor = 1
+dont_swap = False
 
 rospack = rospkg.RosPack()
 file_path=rospack.get_path('around_force')+'/src/'
 matrix = np.load(file_path+'matrix100cm_lane1.npy')
 
-ns = ''
+ns = 'AljoschaTim'
 
 def drive(speed, angle):
-    pub_steering.publish(angle)
-    pub_speed.publish(speed)
+    global steering_factor
+    if time.time() - switched_time > 1:
+        steering_factor = 1
+    else:  
+        speed = speed//1.5
+    pub_steering.publish(steering_factor*angle)
+    pub_speed.publish(Int16(speed))
 
 def stop_driving():
     pub_speed.publish(0)
@@ -49,11 +57,12 @@ def angle_diff(angle1, angle2):
     return diff
 
 def callback(msg):
-    global speed_value, matrix, is_shutdown 
+    global speed_value, matrix, is_shutdown, dont_swap
     global last_time, last_error, windup_guard, PTerm, ITerm, DTerm
 
     # get position and orientation
     x = msg.pose.pose.position.x
+    dont_swap = x < 1.4 or x > 4.3
     y = msg.pose.pose.position.y
     o = msg.pose.pose.orientation
     angles = tf.transformations.euler_from_quaternion([o.x, o.y, o.z, o.w]) 
@@ -120,18 +129,27 @@ def callback(msg):
         speed = max(speed_value, speed * ((np.pi/3)/(abs(steering)+1)))
     steering = 90 + (180/np.pi)*steering 
 
+#    print 'Error:', error
+    if error > 0.2:
+        speed -= error*40
     if not is_shutdown and not is_obstacle:
-        drive(speed, steering)
+        drive(int(speed-50*error), steering)
 
 def laneCallback(msg):
-    global matrix, lane
-    path = 'matrix100cm_lane'
-    if lane == 1:
-        lane = 2
-    else:
-        lane = 1
-    print 'Switching to lane',lane 
-    matrix = np.load(file_path+'matrix100cm_lane'+str(lane)+'.npy')
+    global matrix, lane, switched_time, steering_factor
+    if not dont_swap:
+        path = 'matrix100cm_lane'
+        if lane == 1:
+            lane = 2
+        else:
+            lane = 1
+        #print 'Switching to lane',lane 
+        matrix = np.load(file_path+'matrix100cm_lane'+str(lane)+'.npy')
+        if lane == 2:
+            steering_factor = 1.3
+        else:
+            steering_factor = 0.5
+        switched_time = time.time()
 
 def maxSpeedCallback(msg):
     global speed_value
@@ -151,7 +169,7 @@ def shutdown():
     is_shutdown = True
 
 rospy.init_node('around_force')
-localization = rospy.Subscriber('/localization/odom/4', Odometry, callback)
+localization = rospy.Subscriber('/localization/odom/1', Odometry, callback)
 rospy.Subscriber(ns+'/lane', Bool, laneCallback)
 rospy.Subscriber(ns+'/max_speed', Int16, maxSpeedCallback)
 rospy.Subscriber(ns+'/obstacle', Bool, obstacleCallback)
