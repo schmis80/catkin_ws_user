@@ -1,0 +1,5 @@
+<launch>
+    <node name="assignments7_and_8" pkg="assignments7_and_8" type="around.py" output="screen"></node>
+    <node name="depth" pkg="assignments7_and_8" type="8-obstacle.py" output="screen"></node>
+</launch>
+
